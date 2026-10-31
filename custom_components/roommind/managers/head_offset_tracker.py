@@ -51,8 +51,12 @@ class HeadOffsetTracker:
         device_temp: float | None,
         room_temp: float | None,
         now: float,
+        max_k: float = HEAD_OFFSET_MAX_K,
     ) -> None:
-        """Fold one reading in. Only readings from a state the device has been in long enough count."""
+        """Fold one reading in. Only readings from a state the device has been in long enough count.
+
+        ``max_k`` is the largest difference taken as a bias rather than a broken sensor.
+        """
         state = _STATE_OF_ACTION.get(hvac_action or "")
         if state is None or device_temp is None or room_temp is None:
             self._state_since.pop(entity_id, None)
@@ -64,7 +68,7 @@ class HeadOffsetTracker:
         if now - since[1] < HEAD_OFFSET_SETTLE_S:
             return
         delta = device_temp - room_temp
-        if abs(delta) > HEAD_OFFSET_MAX_K:
+        if abs(delta) > max_k:
             return
         entry = self._offsets.setdefault(entity_id, {}).get(state)
         if entry is None:

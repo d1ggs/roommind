@@ -2248,7 +2248,10 @@ class MPCController:
                             t = min(trv_heat_boost, t)
                         else:
                             t = trv_heat_boost if self.has_external_sensor else effective_target
-                        ha_t = self._heating_setpoint_ha(cmd.entity_id, t, effective_target, direct_target)
+                        shift = self._head_offset(cmd.entity_id, "heat")
+                        ha_t = self._heating_setpoint_ha(
+                            cmd.entity_id, t + shift, effective_target + shift, direct_target
+                        )
                         await self._call("set_hvac_mode", {"entity_id": cmd.entity_id, "hvac_mode": "heat"})
                         await self._async_drive_valve(cmd.entity_id, cmd.power_fraction, effective_target)
                         await self._call(
@@ -2341,7 +2344,8 @@ class MPCController:
                     )
                     await self._async_release_valve(eid)
                     continue
-                ha_t = self._heating_setpoint_ha(eid, trv_target, effective_target, direct_target)
+                shift = self._head_offset(eid, "heat")
+                ha_t = self._heating_setpoint_ha(eid, trv_target + shift, effective_target + shift, direct_target)
                 await self._call("set_hvac_mode", {"entity_id": eid, "hvac_mode": "heat"})
                 await self._async_drive_valve(eid, power_fraction, effective_target)
                 await self._call(
@@ -2775,19 +2779,21 @@ class MPCController:
         return celsius_to_ha_temp(self.hass, effective_target + offset)
 
     def _head_offset(self, eid: str, intent: str) -> float:
-        """Learned offset (K) of an AC's own sensor from the room sensor in state *intent*.
+        """Learned offset (K) of an AC's or TRV's own sensor from the room sensor in state *intent*.
 
-        *intent* is "heat" or "cool" (compressor running that way) or "idle" (stopped).
+        *intent* is "heat" or "cool" (running that way) or "idle" (stopped).
         A proportional, held or setback setpoint is meant in the room's frame, but the
-        unit compares it with its own reading. Adding the offset makes the unit stop and
-        restart where the room, not its sensor, is at the setpoint. Only for ACs in
-        proportional mode with an external room sensor: a direct device carries the
-        user's own offset, and without a room sensor there is nothing to compare with.
+        device compares it with its own reading. Adding the offset makes the device stop and
+        restart where the room, not its sensor, is at the setpoint. A TRV's sensor sits on
+        the radiator and can read several degrees off the room, more so once the radiator
+        is hot. Only for devices in proportional mode with an external room sensor: a direct
+        device carries the user's own offset, and without a room sensor there is nothing to
+        compare with.
         """
         if (
             self._head_offsets is None
             or not self.has_external_sensor
-            or eid not in self.acs
+            or (eid not in self.acs and eid not in self.thermostats)
             or eid in self._direct_eids
         ):
             return 0.0
