@@ -169,3 +169,49 @@ def test_orchestrated_device_setpoint_display_is_in_the_acs_frame():
     # A TRV command keeps its own value
     trv = plan("climate.trv", "thermostat")
     assert show(trv, 20.5, 21.0, 30.0, 30.0, head_offsets=offsets) == show(trv, 20.5, 21.0, 30.0, 30.0)
+
+
+TRV = "climate.trv_offset_test"
+
+
+def _trv_room() -> dict:
+    return {
+        **SAMPLE_ROOM,
+        "climate_mode": "heat_only",
+        "devices": [{"entity_id": TRV, "type": "trv", "role": "auto", "heating_system_type": "radiator"}],
+        "thermostats": [TRV],
+        "acs": [],
+    }
+
+
+def _trv_states(action="heating", valve=16.5, room="21.0"):
+    return make_mock_states_get(
+        temp=room,
+        outdoor_temp="5.0",
+        extra={
+            TRV: (
+                "heat",
+                {
+                    "hvac_action": action,
+                    "current_temperature": valve,
+                    "temperature": 21.0,
+                    "hvac_modes": ["off", "heat"],
+                    "min_temp": 5.0,
+                    "max_temp": 25.0,
+                },
+            ),
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_trv_readings_feed_the_tracker_with_the_wider_limit(hass, mock_config_entry):
+    """A valve reading 4.5 K cold is learned: over the AC limit, inside the TRV one."""
+    _store, coordinator = _setup(hass, mock_config_entry, _trv_room(), _trv_states())
+    coordinator._history_store = MagicMock()  # 30 simulated minutes reach a history write
+    now = [1000.0]
+    with patch.object(coordinator_module.time, "time", lambda: now[0]):
+        for _ in range(15):
+            await coordinator._async_update_data()
+            now[0] += HEAD_OFFSET_SETTLE_S / 2
+    assert coordinator._head_offsets.offset(TRV, "heat") == pytest.approx(-4.5)

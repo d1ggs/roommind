@@ -28,6 +28,7 @@ from .const import (
     DEFAULT_ECO_HEAT,
     DEFAULT_OUTDOOR_HEATING_MAX,
     DOMAIN,
+    HEAD_OFFSET_MAX_K,
     HEATING_BOOST_TARGET,
     HISTORY_ROTATE_CYCLES,
     HISTORY_WRITE_CYCLES,
@@ -44,6 +45,7 @@ from .const import (
     OVERRIDE_TURN_ON_REFRESH_DELAY_S,
     SCHEDULE_STATE_ON,
     THERMAL_SAVE_CYCLES,
+    TRV_HEAD_OFFSET_MAX_K,
     UPDATE_INTERVAL,
     TargetTemps,
     build_override_live,
@@ -1748,9 +1750,11 @@ class RoomMindCoordinator(DataUpdateCoordinator):
         return None
 
     def _observe_head_offsets(self, room: dict, room_temp: float | None) -> None:
-        """Feed each AC's own reading against a fresh room reading into the offset tracker."""
+        """Feed each AC's and TRV's own reading against a fresh room reading into the offset tracker."""
         now = time.time()
-        for eid in get_ac_eids(room.get("devices", [])):
+        devices = room.get("devices", [])
+        trvs = set(get_trv_eids(devices))
+        for eid in [*get_ac_eids(devices), *trvs]:
             state = self.hass.states.get(eid)
             if state is None or state.state in ("unavailable", "unknown"):
                 self._head_offsets.observe(eid, None, None, None, now)
@@ -1763,7 +1767,8 @@ class RoomMindCoordinator(DataUpdateCoordinator):
             # Only a unit that is on: the idle offset is used for the setback, where the unit stays
             # on, and some integrations stop updating current_temperature while the unit is off
             action = state.attributes.get("hvac_action") if state.state in _HEAD_OFFSET_HVAC_MODES else None
-            self._head_offsets.observe(eid, action, device_temp, room_temp, now)
+            max_k = TRV_HEAD_OFFSET_MAX_K if eid in trvs else HEAD_OFFSET_MAX_K
+            self._head_offsets.observe(eid, action, device_temp, room_temp, now, max_k=max_k)
 
     def _read_device_temp(self, room: dict) -> float | None:
         """Read current_temperature from the first thermostat or AC entity."""

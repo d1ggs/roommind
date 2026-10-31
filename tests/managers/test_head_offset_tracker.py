@@ -86,6 +86,17 @@ def test_implausible_offset_is_ignored():
     assert tracker.get_state() == {}
 
 
+def test_a_wider_limit_keeps_a_large_trv_offset():
+    """A TRV on a radiator reads several kelvin off the room; the caller widens the limit for it."""
+    tracker = HeadOffsetTracker()
+    tracker.observe(AC, "idle", 16.2, 21.0, 0.0, max_k=6.0)
+    t = HEAD_OFFSET_SETTLE_S
+    for _ in range(HEAD_OFFSET_MIN_SAMPLES):
+        tracker.observe(AC, "idle", 16.2, 21.0, t, max_k=6.0)
+        t += 30.0
+    assert tracker.offset(AC, "idle") == pytest.approx(-5.0)
+
+
 def test_follows_a_changing_offset():
     tracker = HeadOffsetTracker()
     t = feed(tracker, "cooling", 25.0, 24.0)
