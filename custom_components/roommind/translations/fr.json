@@ -40,5 +40,29 @@
         }
       }
     }
+  },
+  "services": {
+    "set_override": {
+      "name": "Définir une dérogation temporaire",
+      "description": "Maintient une pièce à une température jusqu'à une heure choisie ou pendant un nombre d'heures choisi, puis la ramène à son planning. Indiquez soit une heure de fin, soit une durée.",
+      "fields": {
+        "area_id": {
+          "name": "Pièce",
+          "description": "La pièce concernée."
+        },
+        "temperature": {
+          "name": "Température",
+          "description": "La température cible."
+        },
+        "until": {
+          "name": "Jusqu'à",
+          "description": "Quand la dérogation se termine. Une heure sans fuseau horaire est lue comme l'heure locale de Home Assistant."
+        },
+        "duration": {
+          "name": "Durée",
+          "description": "Combien d'heures dure la dérogation."
+        }
+      }
+    }
   }
 }

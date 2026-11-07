@@ -142,6 +142,8 @@ The entity is placed in the room's area once when it is created, so it shows up 
 
 Like every override, one set here also lifts the outdoor temperature limits for heating and cooling while it lasts.
 
+For an override with a chosen end, for example from a script or a voice assistant, use the action `roommind.set_override` with `area_id`, `temperature` and either `until` (a time without time zone is local time) or `duration` (hours). When it ends, the room returns to its schedule.
+
 A wall display or a thermostat RoomMind does not control can be linked with an automation: its setpoint → `climate.set_temperature` on the room entity, and the room entity's target → the display, so the display always shows what applies.
 
 ### Deprecated entities

@@ -132,6 +132,7 @@ export class RsOverrideSection extends LitElement {
 
       .override-dur-chips {
         display: flex;
+        flex-wrap: wrap;
         gap: 6px;
       }
 
@@ -272,6 +273,9 @@ export class RsOverrideSection extends LitElement {
                     { label: "1h", hours: 1 },
                     { label: "2h", hours: 2 },
                     { label: "4h", hours: 4 },
+                    { label: "8h", hours: 8 },
+                    { label: "12h", hours: 12 },
+                    { label: "24h", hours: 24 },
                   ].map(
                     (opt) => html`
                       <button

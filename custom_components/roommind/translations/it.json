@@ -40,5 +40,29 @@
         }
       }
     }
+  },
+  "services": {
+    "set_override": {
+      "name": "Imposta temperatura temporanea",
+      "description": "Mantiene una stanza a una temperatura fino a un orario scelto o per un numero di ore scelto, poi la riporta alla programmazione. Indica un orario di fine oppure una durata.",
+      "fields": {
+        "area_id": {
+          "name": "Stanza",
+          "description": "La stanza da modificare."
+        },
+        "temperature": {
+          "name": "Temperatura",
+          "description": "La temperatura desiderata."
+        },
+        "until": {
+          "name": "Fino a",
+          "description": "Quando finisce la modifica. Un orario senza fuso orario è inteso come ora locale di Home Assistant."
+        },
+        "duration": {
+          "name": "Durata",
+          "description": "Per quante ore dura la modifica."
+        }
+      }
+    }
   }
 }

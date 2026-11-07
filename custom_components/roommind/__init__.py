@@ -21,6 +21,7 @@ from .const import DOMAIN, PLATFORMS, VERSION
 from .control.direct_valve import async_release_all_valves, clear_valve_cache
 from .coordinator import RoomMindCoordinator
 from .deprecation import async_schedule_deprecation_check
+from .services.override_service import async_register_services
 from .store import RoomMindStore
 from .utils.device_utils import configured_valves
 from .websocket_api import async_register_websocket_commands
@@ -34,6 +35,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the RoomMind integration (YAML, runs once)."""
     hass.data.setdefault(DOMAIN, {})
     async_register_websocket_commands(hass)
+    async_register_services(hass)
     return True
 
 

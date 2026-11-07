@@ -1,0 +1,24 @@
+set_override:
+  fields:
+    area_id:
+      required: true
+      selector:
+        area:
+    temperature:
+      required: true
+      selector:
+        number:
+          min: 5
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°C"
+    until:
+      selector:
+        datetime:
+    duration:
+      selector:
+        number:
+          min: 0.5
+          max: 168
+          step: 0.5
+          unit_of_measurement: h

@@ -40,5 +40,29 @@
         }
       }
     }
+  },
+  "services": {
+    "set_override": {
+      "name": "Zeitlich begrenzte Übersteuerung setzen",
+      "description": "Hält einen Raum bis zu einer gewählten Zeit oder für eine gewählte Anzahl Stunden auf einer Temperatur und kehrt danach zum Zeitplan zurück. Gib entweder eine Endzeit oder eine Dauer an.",
+      "fields": {
+        "area_id": {
+          "name": "Raum",
+          "description": "Der zu übersteuernde Raum."
+        },
+        "temperature": {
+          "name": "Temperatur",
+          "description": "Die Zieltemperatur."
+        },
+        "until": {
+          "name": "Bis",
+          "description": "Wann die Übersteuerung endet. Eine Zeit ohne Zeitzone gilt als lokale Zeit von Home Assistant."
+        },
+        "duration": {
+          "name": "Dauer",
+          "description": "Wie viele Stunden die Übersteuerung dauert."
+        }
+      }
+    }
   }
 }

@@ -15,5 +15,10 @@
         }
       }
     }
+  },
+  "services": {
+    "set_override": {
+      "service": "mdi:timer-outline"
+    }
   }
 }

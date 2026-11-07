@@ -40,5 +40,29 @@
         }
       }
     }
+  },
+  "services": {
+    "set_override": {
+      "name": "Set timed override",
+      "description": "Holds a room at a temperature until a chosen time or for a chosen number of hours, then returns it to its schedule. Give either an end time or a duration.",
+      "fields": {
+        "area_id": {
+          "name": "Room",
+          "description": "The room to override."
+        },
+        "temperature": {
+          "name": "Temperature",
+          "description": "The target temperature."
+        },
+        "until": {
+          "name": "Until",
+          "description": "When the override ends. A time without time zone is read as Home Assistant's local time."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How many hours the override lasts."
+        }
+      }
+    }
   }
 }
