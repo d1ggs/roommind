@@ -5,6 +5,9 @@ Captures exact device sync behavior to prevent regressions during store refactor
 
 from __future__ import annotations
 
+import copy
+from unittest.mock import AsyncMock
+
 import pytest
 
 # ---------------------------------------------------------------------------
@@ -465,3 +468,46 @@ async def test_coil_dry_device_fields_survive_save(store):
     assert dev["coil_dry_fan_mode"] == "high"
     # Legacy sync must still produce the acs list
     assert store.get_room("living_room")["acs"] == ["climate.living_ac"]
+
+
+# ---------------------------------------------------------------------------
+# Temperature-drop window detection options
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_window_detection_defaults(store):
+    """A room saved without the detection keys gets the four defaults."""
+    await store.async_load()
+    room = await store.async_save_room("living_room", {"temperature_sensor": "sensor.living_temp"})
+
+    assert room["window_detection_enabled"] is False
+    assert room["window_detection_drop"] == 0.3
+    assert room["window_detection_window"] == 5
+    assert room["window_detection_pause"] == 15
+
+
+@pytest.mark.asyncio
+async def test_window_detection_values_round_trip(store):
+    """Saved detection values survive creation, an unrelated update and a reload."""
+    await store.async_load()
+    options = {
+        "window_detection_enabled": True,
+        "window_detection_drop": 0.5,
+        "window_detection_window": 10,
+        "window_detection_pause": 30,
+    }
+    await store.async_save_room("living_room", options)
+    await store.async_save_room("living_room", {"comfort_heat": 20.0})
+    assert {k: store.get_room("living_room")[k] for k in options} == options
+
+    saved = copy.deepcopy(store._store.async_save.call_args[0][0])
+    store._store.async_load = AsyncMock(return_value=saved)
+    await store.async_load()
+    assert {k: store.get_room("living_room")[k] for k in options} == options
+
+    await store.async_save_room("living_room", {"window_detection_enabled": False, "window_detection_drop": 1.0})
+    room = store.get_room("living_room")
+    assert room["window_detection_enabled"] is False
+    assert room["window_detection_drop"] == 1.0
+    assert room["window_detection_window"] == 10

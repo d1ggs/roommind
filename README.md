@@ -26,6 +26,7 @@
 - **Vacation Mode** - Global setback temperature with end date for all rooms.
 - **Window/Door Pause** - Pauses climate control when windows or doors are open, with configurable open/close delays.
   After a restart, RoomMind waits until the window sensors report a state (at most 5 minutes; a sensor that is still unavailable then counts as closed). A sensor that no longer exists at all (deleted or renamed) counts as closed right away once Home Assistant has finished starting, with a warning in the log. A sensor that drops out briefly keeps its last state.
+  Rooms with a room temperature sensor can also detect an open window without a contact sensor (per room, off by default): when the room temperature falls by 0.3 °C or more within 5 minutes, the room pauses for 15 minutes, then resumes. The three values can be changed per room. Switching the option off ends a running pause. Rooms that only have the thermostat's own reading cannot use it, because that reading falls whenever the valve closes. After a restart detection starts over.
 - **Mold Risk Detection & Prevention** - Surface humidity estimation using the DIN 4108-2 method. Configurable notifications and automatic temperature raise to prevent mold growth.
 - **Automatic Blind/Cover Shading** - Smart cover deployment based on predicted solar overheating. Includes night close, manual override detection, and cover schedules.
 - **Valve Protection** - Periodic cycling of idle TRV valves to prevent seizing and calcification.
@@ -136,7 +137,7 @@ These can be used in HA automations, dashboards, or other integrations.
 | `hvac_action` | What RoomMind is doing: `heating`, `cooling`, `idle` or `off` |
 | Current temperature and humidity | The room's readings |
 
-Attributes: `override_until`, `window_open`, `presence_away`, `occupancy_vacant`, `vacation`. An open window shows as `idle` with `window_open: true`.
+Attributes: `override_until`, `window_open`, `window_detected`, `presence_away`, `occupancy_vacant`, `vacation`. An open window shows as `idle` with `window_open: true`; `window_detected: true` means a fast temperature drop is holding the pause (a window sensor may be open as well).
 
 The entity is placed in the room's area once when it is created, so it shows up on area cards and Assist finds it by the area ("set the temperature in the living room to 22"). An area you change or remove later is kept. For voice control, hide the room's own thermostats and ACs from Assist (Settings → Voice assistants → Expose), otherwise Assist finds several climate entities in the room and cannot pick one.
 

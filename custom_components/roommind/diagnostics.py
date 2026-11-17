@@ -148,11 +148,12 @@ def _build_entity_states(hass: HomeAssistant, config: dict) -> dict[str, dict[st
 
 
 def _build_window_state(coordinator: Any, area_id: str) -> dict[str, Any]:
-    """Build window manager state for a room."""
+    """Build window manager and temperature-drop detector state for a room."""
     wm = coordinator._window_manager
     now = time.time()
     result: dict[str, Any] = {
         "paused": wm._paused.get(area_id, False),
+        "detected": coordinator._window_drop_detector.is_active(area_id),
     }
     open_since = wm._open_since.get(area_id)
     if open_since:

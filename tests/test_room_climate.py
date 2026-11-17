@@ -259,11 +259,24 @@ def test_extra_attributes(setup):
     assert entity.extra_state_attributes == {
         "override_until": NEXT_EVENT.isoformat(),
         "window_open": True,
+        "window_detected": False,
         "presence_away": True,
         "occupancy_vacant": False,
         "vacation": True,
     }
     assert entity.current_humidity == 55.0
+
+
+def test_window_detected_attribute_follows_live_state(setup):
+    make, coordinator, *_ = setup
+    entity = make(live=_live(window_open=True, window_detected=True))
+    assert entity.extra_state_attributes["window_detected"] is True
+
+    coordinator.data = {"rooms": {"living_room": _live(window_open=False, window_detected=False)}}
+    assert entity.extra_state_attributes["window_detected"] is False
+
+    coordinator.data = {"rooms": {"living_room": _live()}}
+    assert entity.extra_state_attributes["window_detected"] is False
 
 
 @pytest.mark.asyncio

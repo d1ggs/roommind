@@ -56,6 +56,12 @@ DEFAULT_OCCUPANCY_ECO_DELAY_MINUTES = 15
 # Shorter delays flip the target on every motion-sensor edge and flood battery TRVs with setpoints
 MIN_OCCUPANCY_ECO_DELAY_MINUTES = 5
 
+# Open-window detection from a fast fall of the room temperature (per room, off by default)
+DEFAULT_WINDOW_DETECTION_ENABLED = False
+DEFAULT_WINDOW_DETECTION_DROP = 0.3  # °C fall that counts as an open window
+DEFAULT_WINDOW_DETECTION_WINDOW = 5  # minutes the fall is measured over
+DEFAULT_WINDOW_DETECTION_PAUSE = 15  # minutes the room stays paused after a detection
+
 # Context identifier for RoomMind-initiated service calls.
 # Automations can check: trigger.context.parent_id == "roommind"
 ROOMMIND_CONTEXT_ID = "roommind"

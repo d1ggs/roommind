@@ -17,6 +17,10 @@ from .const import (
     DEFAULT_HEAT_SOURCE_OUTDOOR_THRESHOLD,
     DEFAULT_HEAT_SOURCE_PRIMARY_DELTA,
     DEFAULT_OCCUPANCY_ECO_DELAY_MINUTES,
+    DEFAULT_WINDOW_DETECTION_DROP,
+    DEFAULT_WINDOW_DETECTION_ENABLED,
+    DEFAULT_WINDOW_DETECTION_PAUSE,
+    DEFAULT_WINDOW_DETECTION_WINDOW,
     DOMAIN,
 )
 from .utils.device_utils import (
@@ -258,6 +262,10 @@ class RoomMindStore:
             "window_sensors": config.get("window_sensors", []),
             "window_open_delay": config.get("window_open_delay", 0),
             "window_close_delay": config.get("window_close_delay", 0),
+            "window_detection_enabled": config.get("window_detection_enabled", DEFAULT_WINDOW_DETECTION_ENABLED),
+            "window_detection_drop": config.get("window_detection_drop", DEFAULT_WINDOW_DETECTION_DROP),
+            "window_detection_window": config.get("window_detection_window", DEFAULT_WINDOW_DETECTION_WINDOW),
+            "window_detection_pause": config.get("window_detection_pause", DEFAULT_WINDOW_DETECTION_PAUSE),
             "comfort_temp": comfort_heat,
             "eco_temp": eco_heat,
             "comfort_heat": comfort_heat,

@@ -14,6 +14,7 @@ from custom_components.roommind.diagnostics import (
     async_get_config_entry_diagnostics,
 )
 from custom_components.roommind.managers.ac_coil_dry_manager import AcCoilDryManager
+from custom_components.roommind.managers.window_drop_detector import WindowDropDetector
 
 
 def _make_estimator():
@@ -65,6 +66,7 @@ def _make_coordinator(
     coordinator._window_manager._paused = window_paused or {}
     coordinator._window_manager._open_since = window_open_since or {}
     coordinator._window_manager._closed_since = window_closed_since or {}
+    coordinator._window_drop_detector = WindowDropDetector()
 
     # Cover manager
     coordinator._cover_manager._states = cover_states or {}
@@ -399,6 +401,25 @@ async def test_diagnostics_window_state(hass, mock_config_entry):
     window = result["rooms"]["room_a"]["window"]
     assert window["paused"] is True
     assert 118 <= window["open_since"] <= 122
+    assert window["detected"] is False
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_window_detected(hass, mock_config_entry):
+    """A running temperature-drop detection shows in the room's window state."""
+    store = MagicMock()
+    store.get_settings.return_value = {}
+    store.get_rooms.return_value = {"room_a": {}}
+
+    coordinator = _make_coordinator()
+    detector = coordinator._window_drop_detector
+    for now, temp in ((1000.0, 20.0), (1060.0, 19.6)):
+        detector.update("room_a", temp, enabled=True, drop=0.3, window_s=300, pause_s=900, now=now)
+    hass.data[DOMAIN] = {"store": store, "coordinator": coordinator}
+
+    result = await async_get_config_entry_diagnostics(hass, mock_config_entry)
+
+    assert result["rooms"]["room_a"]["window"]["detected"] is True
 
 
 @pytest.mark.asyncio

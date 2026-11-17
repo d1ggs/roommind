@@ -530,6 +530,7 @@ class RoomMindRoomClimate(CoordinatorEntity, ClimateEntity):
         return {
             "override_until": dt_util.utc_from_timestamp(until).isoformat() if until else None,
             "window_open": bool(live.get("window_open", False)),
+            "window_detected": bool(live.get("window_detected", False)),
             "presence_away": bool(live.get("presence_away", False)),
             "occupancy_vacant": bool(live.get("occupancy_vacant", False)),
             "vacation": vacation_until is not None and time.time() < vacation_until,

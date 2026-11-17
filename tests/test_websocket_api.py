@@ -3245,3 +3245,96 @@ def test_setback_auto_off_schema_has_no_default():
     assert on["setback_auto_off"] is True
     with pytest.raises(vol.Invalid):
         _validate({"entity_id": "climate.ac", "type": "ac", "setback_auto_off": "yes"})
+
+
+# ---------------------------------------------------------------------------
+# Temperature-drop window detection options
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_save_room_accepts_window_detection_options(ws_hass, store, connection):
+    """rooms/save stores the four detection options (validated by the real schema)."""
+    await store.async_load()
+    msg = websocket_save_room._ws_schema(
+        {
+            "id": 2,
+            "type": "roommind/rooms/save",
+            "area_id": "bedroom",
+            "temperature_sensor": "sensor.bedroom_temp",
+            "window_detection_enabled": True,
+            "window_detection_drop": "0.4",
+            "window_detection_window": 10,
+            "window_detection_pause": 30,
+        }
+    )
+    await _save_room(ws_hass, connection, msg)
+
+    connection.send_result.assert_called_once()
+    room = connection.send_result.call_args[0][1]["room"]
+    assert room["window_detection_enabled"] is True
+    assert room["window_detection_drop"] == 0.4
+    assert room["window_detection_window"] == 10
+    assert room["window_detection_pause"] == 30
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("window_detection_drop", 0),
+        ("window_detection_drop", 5.1),
+        ("window_detection_window", 0),
+        ("window_detection_window", 61),
+        ("window_detection_pause", 0),
+        ("window_detection_pause", 500),
+        ("window_detection_enabled", "maybe"),
+    ],
+)
+def test_save_room_rejects_out_of_range_window_detection(key, value):
+    """Values outside the allowed ranges are rejected by the rooms/save schema."""
+    import voluptuous as vol
+
+    with pytest.raises(vol.Invalid):
+        websocket_save_room._ws_schema({"id": 1, "type": "roommind/rooms/save", "area_id": "bedroom", key: value})
+
+
+def test_save_room_accepts_window_detection_range_limits():
+    """The range limits themselves are allowed."""
+    schema = websocket_save_room._ws_schema
+    base = {"id": 1, "type": "roommind/rooms/save", "area_id": "bedroom"}
+    low = schema({**base, "window_detection_drop": 0.1, "window_detection_window": 1, "window_detection_pause": 1})
+    high = schema({**base, "window_detection_drop": 5, "window_detection_window": 60, "window_detection_pause": 240})
+    assert (low["window_detection_drop"], low["window_detection_window"], low["window_detection_pause"]) == (0.1, 1, 1)
+    assert (high["window_detection_drop"], high["window_detection_window"], high["window_detection_pause"]) == (
+        5.0,
+        60,
+        240,
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_rooms_includes_window_detected(ws_hass, store, connection):
+    """window_detected passes from the coordinator into list_rooms' live data."""
+    await store.async_load()
+    await _save_room(
+        ws_hass,
+        connection,
+        {"id": 2, "type": "roommind/rooms/save", "area_id": "bedroom", "temperature_sensor": "sensor.bedroom_temp"},
+    )
+    connection.send_result.reset_mock()
+
+    mock_coordinator = MagicMock()
+    mock_coordinator.rooms = {"bedroom": {"mode": "idle", "window_open": True, "window_detected": True}}
+    mock_coordinator.async_request_refresh = AsyncMock()
+    ws_hass.data[DOMAIN]["coordinator"] = mock_coordinator
+
+    await _list_rooms(ws_hass, connection, {"id": 3, "type": "roommind/rooms/list"})
+
+    live = connection.send_result.call_args[0][1]["rooms"]["bedroom"]["live"]
+    assert live["window_open"] is True
+    assert live["window_detected"] is True
+
+    mock_coordinator.rooms = {"bedroom": {"mode": "idle"}}
+    connection.send_result.reset_mock()
+    await _list_rooms(ws_hass, connection, {"id": 4, "type": "roommind/rooms/list"})
+    assert connection.send_result.call_args[0][1]["rooms"]["bedroom"]["live"]["window_detected"] is False

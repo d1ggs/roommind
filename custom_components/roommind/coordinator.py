@@ -27,6 +27,10 @@ from .const import (
     DEFAULT_ECO_COOL,
     DEFAULT_ECO_HEAT,
     DEFAULT_OUTDOOR_HEATING_MAX,
+    DEFAULT_WINDOW_DETECTION_DROP,
+    DEFAULT_WINDOW_DETECTION_ENABLED,
+    DEFAULT_WINDOW_DETECTION_PAUSE,
+    DEFAULT_WINDOW_DETECTION_WINDOW,
     DOMAIN,
     HEAD_OFFSET_MAX_K,
     HEATING_BOOST_TARGET,
@@ -83,6 +87,7 @@ from .managers.mold_manager import MoldManager
 from .managers.residual_heat_tracker import AcReboundTracker, ResidualHeatTracker
 from .managers.valve_manager import ValveManager
 from .managers.weather_manager import WeatherManager
+from .managers.window_drop_detector import WindowDropDetector
 from .managers.window_manager import WindowManager
 from .utils.device_utils import (
     build_rooms_devices_map,
@@ -182,6 +187,7 @@ class RoomMindCoordinator(DataUpdateCoordinator):
         self._outdoor_unavailable_cycles: int = 0
         self._outdoor_warning_sent: bool = False
         self._window_manager = WindowManager()
+        self._window_drop_detector = WindowDropDetector()
         self._previous_modes: dict[str, str] = {}
         self._model_manager: RoomModelManager = RoomModelManager()
         self._model_loaded = False
@@ -676,6 +682,7 @@ class RoomMindCoordinator(DataUpdateCoordinator):
                 "heating_power": 0,
                 "device_setpoint": None,
                 "window_open": False,
+                "window_detected": False,
                 "override_active": False,
                 "override_type": None,
                 "override_heat": None,
@@ -905,6 +912,21 @@ class RoomMindCoordinator(DataUpdateCoordinator):
                 room.get("window_open_delay", 0),
                 room.get("window_close_delay", 0),
             )
+        # A fast fall of the room temperature counts as an open window too.  Only a
+        # room temperature sensor qualifies: a valve's own reading falls whenever the
+        # valve closes.  Without one the detector is fed disabled, which also ends a
+        # pause left over from a sensor that has been removed.
+        window_detected = self._window_drop_detector.update(
+            area_id,
+            current_temp_raw,
+            enabled=has_external_sensor and room.get("window_detection_enabled", DEFAULT_WINDOW_DETECTION_ENABLED),
+            drop=room.get("window_detection_drop", DEFAULT_WINDOW_DETECTION_DROP),
+            window_s=room.get("window_detection_window", DEFAULT_WINDOW_DETECTION_WINDOW) * 60,
+            pause_s=room.get("window_detection_pause", DEFAULT_WINDOW_DETECTION_PAUSE) * 60,
+        )
+        if window_detected:
+            raw_open = True
+            window_open = True
         if window_open or window_pending:
             mode = MODE_IDLE
             power_fraction = 0.0
@@ -1258,6 +1280,7 @@ class RoomMindCoordinator(DataUpdateCoordinator):
             device_min_temp=device_min_temp,
             has_external_sensor=has_external_sensor,
             window_open=window_open,
+            window_detected=window_detected,
             presence_away=presence_away,
             occupancy_vacant=occupancy_vacant,
             force_off=force_off,
@@ -1532,6 +1555,7 @@ class RoomMindCoordinator(DataUpdateCoordinator):
         device_min_temp: float | None,
         has_external_sensor: bool,
         window_open: bool,
+        window_detected: bool,
         presence_away: bool,
         occupancy_vacant: bool,
         force_off: bool,
@@ -1629,6 +1653,7 @@ class RoomMindCoordinator(DataUpdateCoordinator):
                 head_offset=_head_shift,
             ),
             "window_open": window_open,
+            "window_detected": window_detected,
             **build_override_live(
                 room,
                 suppressed=is_override_suppressed(room, settings, presence_away),
@@ -2285,6 +2310,7 @@ class RoomMindCoordinator(DataUpdateCoordinator):
 
         # Clean up in-memory state
         self._window_manager.remove_room(area_id)
+        self._window_drop_detector.remove_room(area_id)
         self._previous_modes.pop(area_id, None)
         self._override_seeded_at.pop(area_id, None)
         self._rooms_to_switch_off.discard(area_id)
