@@ -380,7 +380,10 @@ async def build_analytics_data(
                         target_forecast=target_forecast,
                         outdoor_series=outdoor_series,
                         current_temp=current_t,
-                        window_open=coordinator._window_manager._paused.get(area_id, False),
+                        window_open=(
+                            coordinator._window_manager._paused.get(area_id, False)
+                            or coordinator._window_drop_detector.is_active(area_id)
+                        ),
                         mpc_active=mpc_active,
                         room_config=room_config,
                         settings=settings,

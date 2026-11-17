@@ -609,6 +609,91 @@ class TestBuildAnalyticsData:
             assert kwargs["last_power_fraction"] == 0.8
             assert kwargs["heating_duration_minutes"] > 0.0
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("paused", "detected", "expected"),
+        [
+            (False, False, False),
+            (True, False, True),
+            (False, True, True),
+        ],
+    )
+    async def test_detected_open_window_reaches_simulation(self, paused, detected, expected):
+        """A window-drop detection counts as an open window, like a contact-sensor pause."""
+        hass = MagicMock()
+        hass.config.latitude = 48.0
+        hass.config.longitude = 11.0
+
+        store = MagicMock()
+        store.get_settings.return_value = {"prediction_enabled": True}
+        store.get_room.return_value = {"temperature_sensor": "sensor.temp"}
+
+        from custom_components.roommind.control.thermal_model import ThermalEKF
+
+        est = ThermalEKF()
+        mgr = MagicMock()
+        mgr._estimators = {"room1": est}
+        mgr.get_model.return_value = est.get_model()
+
+        coordinator = MagicMock()
+        coordinator._model_manager = mgr
+        coordinator.outdoor_temp = 10.0
+        coordinator.rooms = {"room1": {}}
+        coordinator._weather_manager._outdoor_forecast = []
+        coordinator._window_manager._paused = {"room1": True} if paused else {}
+        coordinator._window_drop_detector.is_active.side_effect = lambda area_id: detected and area_id == "room1"
+
+        now = time.time()
+        detail_rows = [
+            {
+                "timestamp": str(now - 60),
+                "room_temp": "20.0",
+                "outdoor_temp": "10",
+                "target_temp": "21",
+                "mode": "idle",
+                "predicted_temp": "",
+                "window_open": "",
+                "heating_power": "",
+            },
+        ]
+
+        async def mock_executor(fn, *args, **kwargs):
+            return fn(*args, **kwargs)
+
+        hass.async_add_executor_job = mock_executor
+
+        history_store = MagicMock()
+        history_store.read_detail.return_value = detail_rows
+        history_store.read_history.return_value = []
+        coordinator._history_store = history_store
+
+        with (
+            patch(
+                "custom_components.roommind.services.analytics_service._compute_target_forecast",
+                new_callable=AsyncMock,
+                return_value=[{"ts": now, "target_temp": 21.0, "heat_target": 21.0, "cool_target": 24.0}],
+            ),
+            patch(
+                "custom_components.roommind.services.analytics_service.get_can_heat_cool",
+                return_value=(True, False),
+            ),
+            patch(
+                "custom_components.roommind.services.analytics_service.is_mpc_active",
+                return_value=False,
+            ),
+            patch(
+                "custom_components.roommind.services.analytics_service.check_acs_can_heat",
+                return_value=False,
+            ),
+            patch(
+                "custom_components.roommind.control.analytics_simulator.simulate_prediction",
+                return_value=[21.0],
+            ) as mock_sim,
+        ):
+            await build_analytics_data(hass, "room1", "12h", store, coordinator)
+            mock_sim.assert_called_once()
+            assert mock_sim.call_args.kwargs["window_open"] is expected
+
 
 # ---------------------------------------------------------------------------
 # _csv_to_points -- device_setpoint field
