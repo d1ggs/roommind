@@ -417,7 +417,9 @@ async def test_diagnostics_window_detected(hass, mock_config_entry):
         detector.update("room_a", temp, enabled=True, drop=0.3, window_s=300, pause_s=900, now=now)
     hass.data[DOMAIN] = {"store": store, "coordinator": coordinator}
 
-    result = await async_get_config_entry_diagnostics(hass, mock_config_entry)
+    with patch("custom_components.roommind.managers.window_drop_detector.time") as mock_time:
+        mock_time.time.return_value = 1100.0
+        result = await async_get_config_entry_diagnostics(hass, mock_config_entry)
 
     assert result["rooms"]["room_a"]["window"]["detected"] is True
 

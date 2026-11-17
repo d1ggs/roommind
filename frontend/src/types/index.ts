@@ -40,6 +40,7 @@ export interface RoomLiveData {
   override_suppressed: boolean;
   active_schedule_index: number;
   window_open: boolean;
+  window_detected?: boolean;
   confidence: number | null;
   mpc_active: boolean;
   presence_away: boolean;

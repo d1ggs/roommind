@@ -2,15 +2,32 @@
 
 from __future__ import annotations
 
+import logging
+from types import SimpleNamespace
+
+import pytest
+
+from custom_components.roommind.managers import window_drop_detector as detector_module
 from custom_components.roommind.managers.window_drop_detector import WindowDropDetector
 
 ROOM = "living_room"
 STEP = 30.0
 
+# The detector's wall clock; each _update moves it to that update's ``now`` so
+# is_active is evaluated at the time of the last update unless a test moves it.
+_clock = SimpleNamespace(now=0.0)
+
+
+@pytest.fixture(autouse=True)
+def _fake_clock(monkeypatch):
+    _clock.now = 0.0
+    monkeypatch.setattr(detector_module, "time", SimpleNamespace(time=lambda: _clock.now))
+
 
 def _update(det: WindowDropDetector, temp: float | None, now: float, *, area_id: str = ROOM, **kwargs) -> bool:
     params = {"enabled": True, "drop": 0.3, "window_s": 300, "pause_s": 900}
     params.update(kwargs)
+    _clock.now = now
     return det.update(area_id, temp, now=now, **params)
 
 
@@ -135,3 +152,55 @@ def test_remove_unknown_room_is_noop():
     det = WindowDropDetector()
     det.remove_room("ghost")
     assert det.is_active("ghost") is False
+
+
+def test_is_active_ends_without_update():
+    """is_active turns False once the pause end passes, even with no further update."""
+    det = WindowDropDetector()
+    _feed(det, [20.0, 19.9, 19.8, 19.7])
+    t = 1000.0 + 3 * STEP
+
+    _clock.now = t + 899
+    assert det.is_active(ROOM) is True
+    _clock.now = t + 900
+    assert det.is_active(ROOM) is False
+
+
+def test_lowered_pause_bounds_running_pause():
+    """Lowering pause_s during a pause ends it pause_s after the next update."""
+    det = WindowDropDetector()
+    _feed(det, [20.0, 19.9, 19.8, 19.7], pause_s=14400)
+    t1 = 1000.0 + 3 * STEP + 60
+
+    assert _update(det, 19.7, t1, pause_s=900) is True
+    assert _update(det, 19.7, t1 + 899, pause_s=900) is True
+    assert det.is_active(ROOM) is True
+    assert _update(det, 19.7, t1 + 900, pause_s=900) is False
+    assert det.is_active(ROOM) is False
+
+
+def test_clock_stepping_back_bounds_pause():
+    """A wall clock stepping back a day does not stretch the pause."""
+    det = WindowDropDetector()
+    _feed(det, [20.0, 19.9, 19.8, 19.7], start=100000.0)
+    t = 100000.0 + 3 * STEP
+    back = t - 86400
+
+    assert _update(det, 19.7, back) is True
+    assert _update(det, 19.7, back + 899) is True
+    assert _update(det, 19.7, back + 900) is False
+    assert det.is_active(ROOM) is False
+
+
+def test_pause_end_is_logged(caplog):
+    """The end of a pause is logged at INFO with the room."""
+    det = WindowDropDetector()
+    _feed(det, [20.0, 19.9, 19.8, 19.7])
+    t = 1000.0 + 3 * STEP
+
+    with caplog.at_level(logging.INFO, logger=detector_module.__name__):
+        _update(det, 19.7, t + 900)
+
+    ended = [r for r in caplog.records if r.levelno == logging.INFO and "ended" in r.getMessage()]
+    assert len(ended) == 1
+    assert ROOM in ended[0].getMessage()

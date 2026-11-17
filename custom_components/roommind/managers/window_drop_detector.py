@@ -46,10 +46,15 @@ class WindowDropDetector:
 
         active_until = self._active_until.get(area_id)
         if active_until is not None:
+            # Bound the pause by the current setting from now, so a lowered pause or
+            # a wall clock stepping back cannot stretch it past pause_s.
+            active_until = min(active_until, now + pause_s)
+            self._active_until[area_id] = active_until
             if now < active_until:
                 return True
             self._active_until.pop(area_id)
             self._samples.pop(area_id, None)
+            _LOGGER.info("Room %s: detected open window pause ended", area_id)
 
         samples = self._samples.setdefault(area_id, deque())
         if temp is None:
@@ -79,11 +84,13 @@ class WindowDropDetector:
         return True
 
     def is_active(self, area_id: str) -> bool:
-        """Return True while a detected pause is recorded for the room.
+        """Return True while a detected pause runs for the room.
 
-        The pause is cleared by the first ``update`` at or after its end.
+        Time-aware, so it turns False at the pause end even when ``update`` is no
+        longer called; the recorded pause itself is cleared by the next ``update``.
         """
-        return area_id in self._active_until
+        until = self._active_until.get(area_id)
+        return until is not None and time.time() < until
 
     def remove_room(self, area_id: str) -> None:
         """Clean up state for a removed room."""
