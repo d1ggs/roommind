@@ -125,6 +125,10 @@ export interface RoomConfig {
   window_sensors: string[];
   window_open_delay: number;
   window_close_delay: number;
+  window_detection_enabled?: boolean;
+  window_detection_drop?: number;
+  window_detection_window?: number;
+  window_detection_pause?: number;
   climate_mode: ClimateMode;
   schedules: ScheduleEntry[];
   schedule_selector_entity: string;

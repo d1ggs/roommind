@@ -6,7 +6,13 @@ import { localize } from "../utils/localize";
 import { openEntityInfo } from "../utils/events";
 import { tempUnit } from "../utils/temperature";
 import { inputStyles } from "../styles/input-styles";
-import { DEFAULT_OCCUPANCY_ECO_DELAY, MIN_OCCUPANCY_ECO_DELAY } from "../utils/constants";
+import {
+  DEFAULT_OCCUPANCY_ECO_DELAY,
+  MIN_OCCUPANCY_ECO_DELAY,
+  WINDOW_DETECTION_DROP,
+  WINDOW_DETECTION_PAUSE,
+  WINDOW_DETECTION_WINDOW,
+} from "../utils/constants";
 import "./shared/rs-toggle-row";
 
 type SensorKind = "temp" | "humidity" | "occupancy" | "window";
@@ -23,6 +29,10 @@ export class RsSensorSection extends LitElement {
   @property({ attribute: false }) public windowSensors: Set<string> = new Set();
   @property({ type: Number }) public windowOpenDelay = 0;
   @property({ type: Number }) public windowCloseDelay = 0;
+  @property({ type: Boolean }) public windowDetectionEnabled = false;
+  @property({ type: Number }) public windowDetectionDrop = WINDOW_DETECTION_DROP.default;
+  @property({ type: Number }) public windowDetectionWindow = WINDOW_DETECTION_WINDOW.default;
+  @property({ type: Number }) public windowDetectionPause = WINDOW_DETECTION_PAUSE.default;
   @property({ type: String }) public heatingSystemType = "";
   @property({ type: Boolean }) public editing = false;
   @property() public language = "en";
@@ -248,6 +258,17 @@ export class RsSensorSection extends LitElement {
 
       .occupancy-eco {
         margin-top: 8px;
+      }
+
+      .window-detection {
+        margin-top: 12px;
+      }
+
+      .detection-helper {
+        font-size: 11.5px;
+        line-height: 1.5;
+        color: var(--secondary-text-color);
+        margin-top: 6px;
       }
 
       .delay-fields ha-textfield {
@@ -667,6 +688,10 @@ export class RsSensorSection extends LitElement {
   }
 
   private _renderWindowExtras(lang: string) {
+    return html`${this._renderWindowDelays(lang)}${this._renderWindowDetection(lang)}`;
+  }
+
+  private _renderWindowDelays(lang: string) {
     if (this.windowSensors.size === 0) return nothing;
     return html`
       <div class="delay-fields">
@@ -693,6 +718,70 @@ export class RsSensorSection extends LitElement {
               <div class="delay-hint">
                 <ha-icon icon="mdi:information-outline"></ha-icon>
                 ${localize("devices.underfloor_delay_hint", lang)}
+              </div>
+            `
+          : nothing
+      }
+    `;
+  }
+
+  private _renderWindowDetection(lang: string) {
+    // The backend runs the detector only on a room temperature sensor, never a thermostat reading.
+    const hasTempSensor = !!this.temperatureSensor;
+    const active = hasTempSensor && this.windowDetectionEnabled;
+    return html`
+      <rs-toggle-row
+        class="window-detection"
+        .label=${localize("devices.window_detection", lang)}
+        .checked=${active}
+        .disabled=${!hasTempSensor}
+        @toggle-changed=${(e: CustomEvent<boolean>) =>
+          this._fireSensorChanged("window_detection_enabled", e.detail)}
+      ></rs-toggle-row>
+      ${
+        hasTempSensor
+          ? nothing
+          : html`
+              <div class="detection-helper">
+                ${localize("devices.window_detection_no_sensor", lang)}
+              </div>
+            `
+      }
+      ${
+        active
+          ? html`
+              <div class="delay-fields">
+                <ha-textfield
+                  type="number"
+                  min=${WINDOW_DETECTION_DROP.min}
+                  max=${WINDOW_DETECTION_DROP.max}
+                  step="0.1"
+                  suffix="°C"
+                  .label=${localize("devices.window_detection_drop", lang)}
+                  .value=${String(this.windowDetectionDrop)}
+                  @change=${this._onWindowDetectionDropChange}
+                ></ha-textfield>
+                <ha-textfield
+                  type="number"
+                  min=${WINDOW_DETECTION_WINDOW.min}
+                  max=${WINDOW_DETECTION_WINDOW.max}
+                  suffix="min"
+                  .label=${localize("devices.window_detection_window", lang)}
+                  .value=${String(this.windowDetectionWindow)}
+                  @change=${this._onWindowDetectionWindowChange}
+                ></ha-textfield>
+                <ha-textfield
+                  type="number"
+                  min=${WINDOW_DETECTION_PAUSE.min}
+                  max=${WINDOW_DETECTION_PAUSE.max}
+                  suffix="min"
+                  .label=${localize("devices.window_detection_pause", lang)}
+                  .value=${String(this.windowDetectionPause)}
+                  @change=${this._onWindowDetectionPauseChange}
+                ></ha-textfield>
+              </div>
+              <div class="detection-helper">
+                ${localize("devices.window_detection_helper", lang)}
               </div>
             `
           : nothing
@@ -1002,6 +1091,33 @@ export class RsSensorSection extends LitElement {
       }),
     );
   };
+
+  /** Parses a number field, falls back to the default when empty, clamps to the range and fires it. */
+  private _onRangedNumberChange(
+    e: Event,
+    key: string,
+    range: { default: number; min: number; max: number },
+    decimals: number,
+  ) {
+    const field = e.target as HTMLInputElement;
+    const factor = 10 ** decimals;
+    const parsed = Math.round(parseFloat(field.value) * factor) / factor;
+    const value = Number.isNaN(parsed)
+      ? range.default
+      : Math.min(range.max, Math.max(range.min, parsed));
+    // A clamped value equal to the stored one does not re-render, the field would keep the raw input.
+    field.value = String(value);
+    this._fireSensorChanged(key, value);
+  }
+
+  private _onWindowDetectionDropChange = (e: Event) =>
+    this._onRangedNumberChange(e, "window_detection_drop", WINDOW_DETECTION_DROP, 1);
+
+  private _onWindowDetectionWindowChange = (e: Event) =>
+    this._onRangedNumberChange(e, "window_detection_window", WINDOW_DETECTION_WINDOW, 0);
+
+  private _onWindowDetectionPauseChange = (e: Event) =>
+    this._onRangedNumberChange(e, "window_detection_pause", WINDOW_DETECTION_PAUSE, 0);
 
   private _onWindowCloseDelayChange = (e: Event) => {
     const value = Math.max(0, parseInt((e.target as HTMLInputElement).value) || 0);

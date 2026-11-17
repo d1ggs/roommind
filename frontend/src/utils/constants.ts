@@ -6,6 +6,11 @@ export const DEFAULT_OCCUPANCY_ECO_DELAY = 15;
 /** Lower bound of the delay; mirrors MIN_OCCUPANCY_ECO_DELAY_MINUTES. */
 export const MIN_OCCUPANCY_ECO_DELAY = 5;
 
+/** Temperature-drop window detection defaults and ranges; mirror DEFAULT_WINDOW_DETECTION_* and the rooms/save schema. */
+export const WINDOW_DETECTION_DROP = { default: 0.3, min: 0.1, max: 5.0 }; // °C
+export const WINDOW_DETECTION_WINDOW = { default: 5, min: 1, max: 60 }; // minutes
+export const WINDOW_DETECTION_PAUSE = { default: 15, min: 1, max: 240 }; // minutes
+
 /** Slider default; mirrors DEFAULT_COMFORT_WEIGHT. At and above it pre-heating is not limited. */
 export const DEFAULT_COMFORT_WEIGHT = 70;
 /** Longest pre-heat lead; mirrors PREHEAT_MAX_LEAD_HOURS (mpc_optimizer). */
