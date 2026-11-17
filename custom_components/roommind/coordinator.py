@@ -1447,10 +1447,17 @@ class RoomMindCoordinator(DataUpdateCoordinator):
         # accumulated batch — when no real outdoor source is available.
         # Same flush for a coil dry run in "dry" mode: the compressor is really
         # cooling, so training that window as idle would drift alpha (spec 9.3).
+        # Nor with a device it can neither command nor observe: the commanded power did
+        # not arrive, and hours of "heating" without effect taught a radiator too weak
+        # to reach the target, so the pre-heat started as early as the horizon allows.
         learning_disabled = settings.get("learning_disabled_rooms", [])
         learning_active = area_id not in learning_disabled
+        device_unreachable = self._device_unreachable(room)
+        if device_unreachable:
+            _LOGGER.debug("Room '%s': a climate device is unreachable, skipping model training", area_id)
         if (
             learning_active
+            and not device_unreachable
             and not coil_dry_skip_training
             and hold_running is None
             and current_temp_raw is not None
@@ -1908,6 +1915,24 @@ class RoomMindCoordinator(DataUpdateCoordinator):
             if state is not None and state.attributes.get("hvac_action") in running_actions:
                 labels.append(1.0)
         return sum(labels) / len(labels) if labels else commanded_pf
+
+    def _device_unreachable(self, room: dict) -> bool:
+        """Return True if a climate device of the room has no usable state.
+
+        Such a device takes no command and reports nothing, so what it delivers is
+        unknown in either direction: a heating command did not arrive, and neither did
+        the one switching it off. The ACs of a heat only room with thermostats sit
+        heating out (#476); one unplugged over the winter must not stop the learning.
+        An entity without any state (removed, renamed) is no device of the room.
+        """
+        sitting_out = set(get_ac_eids(room.get("devices", []))) if ac_heating_excluded(room) else set()
+        for eid in get_all_entity_ids(room.get("devices", [])):
+            if eid in sitting_out:
+                continue
+            state = self.hass.states.get(eid)
+            if state is not None and state.state in ("unavailable", "unknown"):
+                return True
+        return False
 
     def _devices_lack_hvac_action(self, room: dict) -> bool:
         """Return True if at least one active device lacks hvac_action.
