@@ -164,6 +164,33 @@ class TestWindowDropDetection:
         assert state["window_open"] is False
 
     @pytest.mark.asyncio
+    async def test_cap_reached_fires_event_once(self, hass, mock_config_entry):
+        """A pause that runs out without recovery fires one event for automations."""
+        coordinator = _setup(hass, mock_config_entry, DETECTING_ROOM)
+        with patch(DETECTOR_TIME) as mock_time:
+            await _cycle(coordinator, hass, mock_time, 1000.0, temp="20.0")
+            await _cycle(coordinator, hass, mock_time, 1060.0, temp="19.6")
+            hass.bus.async_fire.reset_mock()
+            await _cycle(coordinator, hass, mock_time, 1060.0 + 60 * 60, temp="19.6")
+            await _cycle(coordinator, hass, mock_time, 1120.0 + 60 * 60, temp="19.6")
+
+        calls = [c for c in hass.bus.async_fire.call_args_list if c.args[0] == "roommind_window_detection_timeout"]
+        assert len(calls) == 1
+        assert calls[0].args[1]["pause_minutes"] == 60
+        assert calls[0].args[1]["temperature"] == 19.6
+
+    @pytest.mark.asyncio
+    async def test_recovery_fires_no_event(self, hass, mock_config_entry):
+        coordinator = _setup(hass, mock_config_entry, DETECTING_ROOM)
+        with patch(DETECTOR_TIME) as mock_time:
+            await _cycle(coordinator, hass, mock_time, 1000.0, temp="20.0")
+            await _cycle(coordinator, hass, mock_time, 1060.0, temp="19.6")
+            hass.bus.async_fire.reset_mock()
+            await _cycle(coordinator, hass, mock_time, 1120.0, temp="20.0")
+
+        assert not [c for c in hass.bus.async_fire.call_args_list if c.args[0] == "roommind_window_detection_timeout"]
+
+    @pytest.mark.asyncio
     async def test_detection_skips_model_training(self, hass, mock_config_entry):
         coordinator = _setup(hass, mock_config_entry, DETECTING_ROOM)
         with patch(DETECTOR_TIME) as mock_time:

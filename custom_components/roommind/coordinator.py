@@ -32,6 +32,7 @@ from .const import (
     DEFAULT_WINDOW_DETECTION_PAUSE,
     DEFAULT_WINDOW_DETECTION_WINDOW,
     DOMAIN,
+    EVENT_WINDOW_DETECTION_TIMEOUT,
     HEAD_OFFSET_MAX_K,
     HEATING_BOOST_TARGET,
     HISTORY_ROTATE_CYCLES,
@@ -929,6 +930,18 @@ class RoomMindCoordinator(DataUpdateCoordinator):
             window_s=room.get("window_detection_window", DEFAULT_WINDOW_DETECTION_WINDOW) * 60,
             pause_s=room.get("window_detection_pause", DEFAULT_WINDOW_DETECTION_PAUSE) * 60,
         )
+        if self._window_drop_detector.pop_cap_reached(area_id):
+            # The pause ran out without the room warming back up: a window still
+            # open, or a room that does not rebound.  Heating resumes; let an
+            # automation tell the user.
+            self.hass.bus.async_fire(
+                EVENT_WINDOW_DETECTION_TIMEOUT,
+                {
+                    "area_id": area_id,
+                    "pause_minutes": room.get("window_detection_pause", DEFAULT_WINDOW_DETECTION_PAUSE),
+                    "temperature": current_temp_raw,
+                },
+            )
         if window_detected:
             raw_open = True
             window_open = True

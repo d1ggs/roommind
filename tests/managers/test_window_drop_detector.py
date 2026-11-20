@@ -278,3 +278,30 @@ def test_without_recovery_argument_pause_is_fixed():
     _feed(det, [20.0, 19.9, 19.8, 19.7])
     t = 1000.0 + 3 * STEP
     assert _update(det, 21.0, t + 60) is True
+
+
+# --- Cap reached: reported once so the coordinator can tell the user ---
+
+
+def test_cap_reached_reported_once():
+    det = WindowDropDetector()
+    t = _fire(det)
+    assert _update(det, 19.0, t + 899, recovery=0.3) is True
+    assert det.pop_cap_reached(ROOM) is False
+    assert _update(det, 19.0, t + 900, recovery=0.3) is False
+    assert det.pop_cap_reached(ROOM) is True
+    assert det.pop_cap_reached(ROOM) is False
+
+
+def test_recovery_does_not_report_cap():
+    det = WindowDropDetector()
+    t = _fire(det)
+    assert _update(det, 20.0, t + 60, recovery=0.3) is False
+    assert det.pop_cap_reached(ROOM) is False
+
+
+def test_disabling_does_not_report_cap():
+    det = WindowDropDetector()
+    t = _fire(det)
+    assert _update(det, 19.0, t + 60, enabled=False) is False
+    assert det.pop_cap_reached(ROOM) is False

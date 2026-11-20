@@ -28,6 +28,7 @@ class WindowDropDetector:
         self._samples: dict[str, deque[tuple[float, float]]] = {}
         self._active_until: dict[str, float] = {}
         self._lowest: dict[str, float] = {}
+        self._cap_reached: set[str] = set()
 
     def update(
         self,
@@ -70,6 +71,7 @@ class WindowDropDetector:
             if recovered:
                 _LOGGER.info("Room %s: temperature recovered, treating window as closed", area_id)
             else:
+                self._cap_reached.add(area_id)
                 _LOGGER.info("Room %s: detected open window pause ended", area_id)
 
         samples = self._samples.setdefault(area_id, deque())
@@ -109,8 +111,20 @@ class WindowDropDetector:
         until = self._active_until.get(area_id)
         return until is not None and time.time() < until
 
+    def pop_cap_reached(self, area_id: str) -> bool:
+        """Return True once after a pause ran its full length without a recovery.
+
+        That is a window still open, or a room that does not warm back up by
+        itself; either way heating resumes and someone should know.
+        """
+        if area_id in self._cap_reached:
+            self._cap_reached.discard(area_id)
+            return True
+        return False
+
     def remove_room(self, area_id: str) -> None:
         """Clean up state for a removed room."""
         self._samples.pop(area_id, None)
         self._active_until.pop(area_id, None)
         self._lowest.pop(area_id, None)
+        self._cap_reached.discard(area_id)
