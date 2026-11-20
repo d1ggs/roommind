@@ -17,13 +17,17 @@ class WindowDropDetector:
 
     Keeps the room temperature samples of the last ``window_s`` seconds and fires
     when the highest of them minus the newest reaches ``drop``.  After firing the
-    room counts as window open for ``pause_s`` seconds; when that pause ends the
-    samples start over, so the colder room does not fire again by itself.
+    room counts as window open for at most ``pause_s`` seconds.  With ``recovery``
+    set the pause ends earlier, as soon as the room is that much warmer than its
+    lowest reading since the detection: heating is off during the pause, so such
+    a rise means the window was closed.  When the pause ends the samples start
+    over, so the colder room does not fire again by itself.
     """
 
     def __init__(self) -> None:
         self._samples: dict[str, deque[tuple[float, float]]] = {}
         self._active_until: dict[str, float] = {}
+        self._lowest: dict[str, float] = {}
 
     def update(
         self,
@@ -34,6 +38,7 @@ class WindowDropDetector:
         drop: float,
         window_s: float,
         pause_s: float,
+        recovery: float | None = None,
         now: float | None = None,
     ) -> bool:
         """Feed one sample; return True while the room counts as window open."""
@@ -50,11 +55,22 @@ class WindowDropDetector:
             # a wall clock stepping back cannot stretch it past pause_s.
             active_until = min(active_until, now + pause_s)
             self._active_until[area_id] = active_until
+            recovered = False
             if now < active_until:
-                return True
+                if temp is None or recovery is None:
+                    return True
+                lowest = min(self._lowest.get(area_id, temp), temp)
+                self._lowest[area_id] = lowest
+                if temp - lowest < recovery - _EPSILON:
+                    return True
+                recovered = True
             self._active_until.pop(area_id)
             self._samples.pop(area_id, None)
-            _LOGGER.info("Room %s: detected open window pause ended", area_id)
+            self._lowest.pop(area_id, None)
+            if recovered:
+                _LOGGER.info("Room %s: temperature recovered, treating window as closed", area_id)
+            else:
+                _LOGGER.info("Room %s: detected open window pause ended", area_id)
 
         samples = self._samples.setdefault(area_id, deque())
         if temp is None:
@@ -73,9 +89,10 @@ class WindowDropDetector:
             return False
 
         self._active_until[area_id] = now + pause_s
+        self._lowest[area_id] = temp
         samples.clear()
         _LOGGER.info(
-            "Room %s: temperature fell %.2f C within %ds, treating window as open for %ds",
+            "Room %s: temperature fell %.2f C within %ds, treating window as open for up to %ds",
             area_id,
             fall,
             window_s,
@@ -96,3 +113,4 @@ class WindowDropDetector:
         """Clean up state for a removed room."""
         self._samples.pop(area_id, None)
         self._active_until.pop(area_id, None)
+        self._lowest.pop(area_id, None)

@@ -484,7 +484,7 @@ async def test_window_detection_defaults(store):
     assert room["window_detection_enabled"] is False
     assert room["window_detection_drop"] == 0.3
     assert room["window_detection_window"] == 5
-    assert room["window_detection_pause"] == 15
+    assert room["window_detection_pause"] == 60
 
 
 @pytest.mark.asyncio

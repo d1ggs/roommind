@@ -135,18 +135,33 @@ class TestWindowDropDetection:
             assert state["window_open"] is True
             assert state["window_detected"] is True
 
-            # Contact closes while the detection pause (15 min default) still runs
+            # Contact closes while the detection pause (60 min default cap) still runs
             state = await _cycle(coordinator, hass, mock_time, 1120.0, temp="19.6", window="off")
             assert state["mode"] == MODE_IDLE
             assert state["window_open"] is True
             assert state["window_detected"] is True
 
             # Pause over and contact closed: control resumes
-            state = await _cycle(coordinator, hass, mock_time, 1060.0 + 15 * 60, temp="19.6", window="off")
+            state = await _cycle(coordinator, hass, mock_time, 1060.0 + 60 * 60, temp="19.6", window="off")
 
         assert state["window_open"] is False
         assert state["window_detected"] is False
         assert state["mode"] == "heating"
+
+    @pytest.mark.asyncio
+    async def test_recovery_ends_detection_before_the_cap(self, hass, mock_config_entry):
+        """The room warming back up by the drop threshold ends the pause early."""
+        coordinator = _setup(hass, mock_config_entry, DETECTING_ROOM)
+        with patch(DETECTOR_TIME) as mock_time:
+            await _cycle(coordinator, hass, mock_time, 1000.0, temp="20.0")
+            state = await _cycle(coordinator, hass, mock_time, 1060.0, temp="19.6")
+            assert state["window_detected"] is True
+            state = await _cycle(coordinator, hass, mock_time, 1120.0, temp="19.2")
+            assert state["window_detected"] is True
+            state = await _cycle(coordinator, hass, mock_time, 1180.0, temp="19.5")
+
+        assert state["window_detected"] is False
+        assert state["window_open"] is False
 
     @pytest.mark.asyncio
     async def test_detection_skips_model_training(self, hass, mock_config_entry):

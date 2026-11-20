@@ -60,7 +60,7 @@ MIN_OCCUPANCY_ECO_DELAY_MINUTES = 5
 DEFAULT_WINDOW_DETECTION_ENABLED = False
 DEFAULT_WINDOW_DETECTION_DROP = 0.3  # °C fall that counts as an open window
 DEFAULT_WINDOW_DETECTION_WINDOW = 5  # minutes the fall is measured over
-DEFAULT_WINDOW_DETECTION_PAUSE = 15  # minutes the room stays paused after a detection
+DEFAULT_WINDOW_DETECTION_PAUSE = 60  # longest minutes a room stays paused after a detection
 
 # Context identifier for RoomMind-initiated service calls.
 # Automations can check: trigger.context.parent_id == "roommind"

@@ -204,3 +204,77 @@ def test_pause_end_is_logged(caplog):
     ended = [r for r in caplog.records if r.levelno == logging.INFO and "ended" in r.getMessage()]
     assert len(ended) == 1
     assert ROOM in ended[0].getMessage()
+
+
+# --- Recovery: the pause ends early once the room warms back up ---
+
+
+def _fire(det: WindowDropDetector) -> float:
+    """Fire a detection ending at 19.7 C; return the time of the firing sample."""
+    assert _feed(det, [20.0, 19.9, 19.8, 19.7], recovery=0.3)[-1] is True
+    return 1000.0 + 3 * STEP
+
+
+def test_recovery_ends_pause_early():
+    """A rise of ``recovery`` above the lowest reading since the detection ends the pause."""
+    det = WindowDropDetector()
+    t = _fire(det)
+    assert _update(det, 19.2, t + 60, recovery=0.3) is True
+    assert _update(det, 19.4, t + 120, recovery=0.3) is True
+    assert _update(det, 19.5, t + 180, recovery=0.3) is False
+    assert det.is_active(ROOM) is False
+
+
+def test_recovery_measured_from_lowest_reading():
+    """The room keeps falling after the detection; recovery counts from the bottom."""
+    det = WindowDropDetector()
+    t = _fire(det)
+    assert _update(det, 18.5, t + 60, recovery=0.3) is True
+    assert _update(det, 18.0, t + 120, recovery=0.3) is True
+    assert _update(det, 18.2, t + 180, recovery=0.3) is True
+    assert _update(det, 18.3, t + 240, recovery=0.3) is False
+
+
+def test_no_recovery_holds_until_cap():
+    """A room that stays cold is paused for the full pause_s, then released."""
+    det = WindowDropDetector()
+    t = _fire(det)
+    assert _update(det, 19.0, t + 60, recovery=0.3) is True
+    assert _update(det, 19.1, t + 899, recovery=0.3) is True
+    assert _update(det, 19.1, t + 900, recovery=0.3) is False
+
+
+def test_missing_temperature_keeps_pause_and_lowest():
+    """A sample without temperature neither ends the pause nor resets the lowest reading."""
+    det = WindowDropDetector()
+    t = _fire(det)
+    assert _update(det, 19.0, t + 60, recovery=0.3) is True
+    assert _update(det, None, t + 120, recovery=0.3) is True
+    assert _update(det, 19.2, t + 180, recovery=0.3) is True
+    assert _update(det, 19.3, t + 240, recovery=0.3) is False
+
+
+def test_fresh_fall_after_recovery_fires_again():
+    """After a recovery the detector is armed again and a new fall fires."""
+    det = WindowDropDetector()
+    t = _fire(det)
+    assert _update(det, 20.0, t + 60, recovery=0.3) is False
+    results = _feed(det, [20.0, 19.9, 19.8, 19.7], start=t + 90, recovery=0.3)
+    assert results[-1] is True
+
+
+def test_recovery_sample_does_not_refire_by_itself():
+    """The colder samples from the pause are gone, so the warm sample starts a fresh window."""
+    det = WindowDropDetector()
+    t = _fire(det)
+    assert _update(det, 19.0, t + 60, recovery=0.3) is True
+    assert _update(det, 19.3, t + 120, recovery=0.3) is False
+    assert _update(det, 19.3, t + 150, recovery=0.3) is False
+
+
+def test_without_recovery_argument_pause_is_fixed():
+    """Callers that pass no recovery keep the fixed pause."""
+    det = WindowDropDetector()
+    _feed(det, [20.0, 19.9, 19.8, 19.7])
+    t = 1000.0 + 3 * STEP
+    assert _update(det, 21.0, t + 60) is True

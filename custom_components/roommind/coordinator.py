@@ -915,15 +915,17 @@ class RoomMindCoordinator(DataUpdateCoordinator):
         # A fast fall of the room temperature counts as an open window too.  Only a
         # room temperature sensor qualifies: a valve's own reading falls whenever the
         # valve closes.  Without one the detector is fed disabled, which also ends a
-        # pause left over from a sensor that has been removed.  While the room cools
-        # (this cycle or the last) the fall is the AC's doing: feed no temperature,
-        # which clears the samples but keeps a pause that is already running.
+        # pause left over from a sensor that has been removed.  The pause ends early
+        # once the room has warmed back up by the amount that triggers a detection.
+        # While the room cools (this cycle or the last) the fall is the AC's doing:
+        # feed no temperature, which clears the samples but keeps a running pause.
         cooling = mode == MODE_COOLING or self._previous_modes.get(area_id, MODE_IDLE) == MODE_COOLING
         window_detected = self._window_drop_detector.update(
             area_id,
             None if cooling else current_temp_raw,
             enabled=has_external_sensor and room.get("window_detection_enabled", DEFAULT_WINDOW_DETECTION_ENABLED),
             drop=room.get("window_detection_drop", DEFAULT_WINDOW_DETECTION_DROP),
+            recovery=room.get("window_detection_drop", DEFAULT_WINDOW_DETECTION_DROP),
             window_s=room.get("window_detection_window", DEFAULT_WINDOW_DETECTION_WINDOW) * 60,
             pause_s=room.get("window_detection_pause", DEFAULT_WINDOW_DETECTION_PAUSE) * 60,
         )
